@@ -1,100 +1,168 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<title>シューティング（スマホ対応）</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<title>シューティングゲーム</title>
 
 <style>
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   margin: 0;
-  background: #081120;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  overflow: hidden;
+  background: linear-gradient(180deg, #081120, #020814);
+  touch-action: none;
+  font-family: sans-serif;
   color: white;
 }
 
 canvas {
-  background: #020814;
-  border: 2px solid #6cc6ff;
-  border-radius: 12px;
+  display: block;
   width: 100vw;
-  max-width: 480px;
+  height: 100vh;
+  background: #020814;
 }
 
-.controls {
-  margin-top: 10px;
-}
-
-button {
+#ui {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
   font-size: 20px;
-  padding: 10px 20px;
+}
+
+#gameOver {
+  position: fixed;
+  inset: 0;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  background: rgba(0,0,0,0.7);
+  z-index: 20;
+}
+
+#gameOver button {
+  font-size: 22px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  margin-top: 20px;
 }
 </style>
 </head>
 
 <body>
-<h2>タップで操作</h2>
-<canvas id="game" width="480" height="640"></canvas>
 
-<div class="controls">
-  <button onclick="shoot()">発射</button>
+<div id="ui">
+  Score: <span id="score">0</span>
 </div>
 
+<div id="gameOver">
+  <h1>GAME OVER</h1>
+  <button onclick="restartGame()">もう一度遊ぶ</button>
+</div>
+
+<canvas id="game"></canvas>
+
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const scoreText = document.getElementById("score");
+const gameOverScreen = document.getElementById("gameOver");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+resizeCanvas();
+
+window.addEventListener("resize", resizeCanvas);
 
 let score = 0;
-let gameOver = false;
 let frame = 0;
+let gameOver = false;
 
 const player = {
-  x: canvas.width / 2 - 20,
-  y: canvas.height - 60,
-  w: 40,
-  h: 40,
-  speed: 6,
+  x: 100,
+  y: 100,
+  w: 50,
+  h: 50,
   cooldown: 0
 };
 
 let bullets = [];
 let enemies = [];
 
-canvas.addEventListener("touchmove", (e) => {
+function resetPlayerPosition() {
+  player.x = canvas.width / 2 - player.w / 2;
+  player.y = canvas.height - 120;
+}
+
+resetPlayerPosition();
+
+function shoot() {
+  if (player.cooldown > 0 || gameOver) return;
+
+  bullets.push({
+    x: player.x + player.w / 2 - 4,
+    y: player.y,
+    w: 8,
+    h: 18,
+    speed: 12
+  });
+
+  player.cooldown = 10;
+}
+
+canvas.addEventListener("touchstart", (e) => {
   e.preventDefault();
-  const rect = canvas.getBoundingClientRect();
+
   const touch = e.touches[0];
-  const x = touch.clientX - rect.left;
-  player.x = x - player.w / 2;
+
+  player.x = touch.clientX - player.w / 2;
+
+  shoot();
+
 }, { passive: false });
 
-canvas.addEventListener("touchstart", () => {
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+
+  const touch = e.touches[0];
+
+  player.x = touch.clientX - player.w / 2;
+
+}, { passive: false });
+
+canvas.addEventListener("mousedown", (e) => {
+  player.x = e.clientX - player.w / 2;
   shoot();
 });
 
-function shoot() {
-  if (player.cooldown === 0 && !gameOver) {
-    bullets.push({
-      x: player.x + player.w / 2 - 3,
-      y: player.y,
-      w: 6,
-      h: 14,
-      speed: 9
-    });
-    player.cooldown = 10;
+canvas.addEventListener("mousemove", (e) => {
+  if (e.buttons === 1) {
+    player.x = e.clientX - player.w / 2;
   }
-}
+});
 
 function spawnEnemy() {
-  const size = 30;
+
+  const size = 30 + Math.random() * 30;
+
   enemies.push({
     x: Math.random() * (canvas.width - size),
     y: -size,
     w: size,
     h: size,
-    speed: 2 + Math.random() * 2
+    speed: 2 + Math.random() * 4
   });
 }
 
@@ -108,24 +176,35 @@ function intersects(a, b) {
 }
 
 function update() {
+
   if (gameOver) return;
 
   frame++;
 
-  if (player.cooldown > 0) player.cooldown--;
+  if (player.cooldown > 0) {
+    player.cooldown--;
+  }
 
-  bullets.forEach(b => b.y -= b.speed);
-  bullets = bullets.filter(b => b.y > 0);
+  bullets.forEach(b => {
+    b.y -= b.speed;
+  });
 
-  if (frame % 40 === 0) spawnEnemy();
+  bullets = bullets.filter(b => b.y + b.h > 0);
 
-  enemies.forEach(e => e.y += e.speed);
+  if (frame % 30 === 0) {
+    spawnEnemy();
+  }
+
+  enemies.forEach(e => {
+    e.y += e.speed;
+  });
 
   for (let i = enemies.length - 1; i >= 0; i--) {
+
     const e = enemies[i];
 
     if (intersects(player, e)) {
-      gameOver = true;
+      endGame();
     }
 
     if (e.y > canvas.height) {
@@ -134,43 +213,127 @@ function update() {
     }
 
     for (let j = bullets.length - 1; j >= 0; j--) {
-      if (intersects(bullets[j], e)) {
+
+      const b = bullets[j];
+
+      if (intersects(b, e)) {
+
         enemies.splice(i, 1);
         bullets.splice(j, 1);
+
         score += 10;
+        scoreText.textContent = score;
+
         break;
       }
     }
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawPlayer() {
 
   ctx.fillStyle = "#59c3ff";
-  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  ctx.beginPath();
+
+  ctx.moveTo(player.x + player.w / 2, player.y);
+  ctx.lineTo(player.x, player.y + player.h);
+  ctx.lineTo(player.x + player.w, player.y + player.h);
+
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawBullets() {
 
   ctx.fillStyle = "#ffe066";
-  bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+  bullets.forEach(b => {
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+  });
+}
+
+function drawEnemies() {
 
   ctx.fillStyle = "#ff6b6b";
-  enemies.forEach(e => ctx.fillRect(e.x, e.y, e.w, e.h));
+
+  enemies.forEach(e => {
+
+    ctx.beginPath();
+
+    ctx.arc(
+      e.x + e.w / 2,
+      e.y + e.h / 2,
+      e.w / 2,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  });
+}
+
+function drawBackground() {
+
+  ctx.fillStyle = "#020814";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "white";
-  ctx.fillText("Score: " + score, 10, 20);
 
-  if (gameOver) {
-    ctx.fillText("GAME OVER", 150, 300);
+  for (let i = 0; i < 100; i++) {
+
+    const x = (i * 97 + frame * 0.3) % canvas.width;
+    const y = (i * 57 + frame * 2) % canvas.height;
+
+    ctx.fillRect(x, y, 2, 2);
   }
 }
 
+function draw() {
+
+  drawBackground();
+
+  drawPlayer();
+
+  drawBullets();
+
+  drawEnemies();
+}
+
+function endGame() {
+
+  gameOver = true;
+
+  gameOverScreen.style.display = "flex";
+}
+
+function restartGame() {
+
+  score = 0;
+  frame = 0;
+  gameOver = false;
+
+  bullets = [];
+  enemies = [];
+
+  scoreText.textContent = "0";
+
+  resetPlayerPosition();
+
+  gameOverScreen.style.display = "none";
+}
+
 function loop() {
+
   update();
+
   draw();
+
   requestAnimationFrame(loop);
 }
 
 loop();
 </script>
+
 </body>
 </html>
